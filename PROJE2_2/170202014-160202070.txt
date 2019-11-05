@@ -1,0 +1,588 @@
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "inc/tm4c123gh6pm.h"
+// stellaris #include "inc/lm4f120h5qr.h"
+
+#include <stdbool.h>
+#include "inc/hw_types.h"
+#include "driverlib/gpio.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/uart.h"
+#include "utils/uartstdio.h"
+
+#define RW 0x20 								// PA5
+#define RS 0x40  								// PA6
+#define E  0x80  								// PA7
+#define BAUDRATE 600
+
+struct kasa{
+	int birTL;
+	int elliKrs;
+	int yirmibeskrs;
+}kasa;
+struct depo{
+	int id;
+	char adi[10];
+	int stok;
+	int fiyat;
+}depo[5];
+/** UART (seri port) ayarini yapan fonksiyon */
+void init_UARTstdio() {
+	SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+	GPIOPinConfigure(0x00000001);
+	GPIOPinConfigure(0x00000401);
+	GPIOPinTypeUART(0x40004000, 0x00000001 | 0x00000002);
+	UARTConfigSetExpClk(0x40004000, SysCtlClockGet(), BAUDRATE,
+                        	(UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
+                         	UART_CONFIG_PAR_NONE));
+	UARTStdioConfig(0, BAUDRATE, SysCtlClockGet());
+}
+void init_lcd(){
+	volatile unsigned long delay;
+	SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOA;		// A portunu aktive et
+	delay = SYSCTL_RCGC2_R;						// A portunun aktive edilmesini 1 tick bekle
+	GPIO_PORTA_AMSEL_R &= ~0b11100000;			// A portunun analog modunu devre dýþý býrak
+	GPIO_PORTA_PCTL_R &= ~0xFFF00000;			// A portundaki pinlerin voltajýný düzenle (PCTL=Power Control)
+	GPIO_PORTA_DIR_R |= 0b11100000;				// A portunun giriþ çýkýþlarýný belirle
+	GPIO_PORTA_AFSEL_R &= ~0b11100000;			// A portundaki alternatif fonksiyonlarý seç
+	GPIO_PORTA_DEN_R |= 0b11100000;				// A portunun pinlerini aktifleþtir
+	GPIO_PORTA_DR8R_R |= 0b11100000;			// A portundaki pinlerin 8mA çýkýþýný aktive et
+
+	SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOB;		// B portunu aktive et
+	delay = SYSCTL_RCGC2_R;						// B portunun aktive edilmesini 1 tick bekle
+	GPIO_PORTB_AMSEL_R &= ~0b11111111;			// B portunun analog modunu devre dýþý býrak
+	GPIO_PORTB_PCTL_R &= ~0xFFFFFFFF;			// B portundaki pinlerin voltajýný düzenle (PCTL=Power Control)
+	GPIO_PORTB_DIR_R |= 0b11111111;				// B portunun giriþ çýkýþlarýný belirle
+	GPIO_PORTB_AFSEL_R &= ~0b11111111;			// B portundaki alternatif fonksiyonlarý seç
+	GPIO_PORTB_DEN_R |= 0b11111111;				// B portunun pinlerini aktifleþtir
+	GPIO_PORTB_DR8R_R |= 0b11111111;			// B portundaki pinlerin 8mA çýkýþýný aktive et
+
+
+}
+void init_portE(){
+	volatile unsigned long delay;
+		SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOE;		// E portunu aktive et
+		delay = SYSCTL_RCGC2_R;						// E portunun aktive edilmesini 1 tick bekle
+		GPIO_PORTE_DIR_R |= 0x00;					// E portunun giriþ çýkýþlarýný belirle
+		GPIO_PORTE_DEN_R |= 0b00111111;				// E portunun pinlerini aktifleþtir
+}
+void init_port_D() {
+	volatile unsigned long delay;
+	SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOD;
+	delay = SYSCTL_RCGC2_R;
+	GPIO_PORTD_DIR_R |= 0b00011;
+	GPIO_PORTD_AFSEL_R &= ~0b00011;
+	GPIO_PORTD_DEN_R |= 0b0011;
+}
+void init_port_F() {
+	volatile unsigned long tmp; // bu degisken gecikme yapmak icin gerekli
+	SYSCTL_RCGCGPIO_R |= 0x00000020; // Port F’nin saatini aktifleþtir
+	tmp = SYSCTL_RCGCGPIO_R;    // Saatin baþlamasý için gecikme
+	GPIO_PORTF_LOCK_R = 0x4C4F434B;   // Port F GPIO kilidini aç
+	GPIO_PORTF_CR_R = 0x01;       // PF4-0 kilidini aç (Sadece PF0 kilitlidir, diðer bitler kilitli deðildir.)
+	GPIO_PORTF_DIR_R = 0b01110;      // PF4,PF0 giriþ, PF3-1 çýkýþ
+	GPIO_PORTF_PUR_R = 0x11; // PF0 ve PF4 üzerindeki pull-up direncini aktifleþtir
+	GPIO_PORTF_DEN_R = 0b01111; // PF4-0 digital I/O aktifleþtir }
+}
+void komutGonder(unsigned char LCD_Comment){
+	volatile unsigned long delay;
+
+	GPIO_PORTA_DATA_R &= ~(RS+RW+E);			// Tüm pinleri sýfýrla
+	GPIO_PORTB_DATA_R = LCD_Comment;			// Komutu yazdýr
+	GPIO_PORTA_DATA_R |= E;						// E'yi aç
+	GPIO_PORTA_DATA_R &= ~(RS+RW);				// RS ve RW kapat
+	for (delay = 0 ; delay < 1; delay++);		// 1us bekle
+	GPIO_PORTA_DATA_R &= ~(RS+RW+E);			// RS, RW ve E kapat
+	for (delay = 0 ; delay < 1000; delay++);	// 1ms bekle
+}
+
+void veriGonder(unsigned char LCD_Data){
+	volatile unsigned long delay;
+
+	GPIO_PORTB_DATA_R = LCD_Data;				// Write Data
+	GPIO_PORTA_DATA_R |= RS+E;					// RS ve E aç
+	GPIO_PORTA_DATA_R &= ~RW;					// RW kapat
+	for (delay = 0 ; delay < 23 ; delay++);		// 230ns bekle
+	GPIO_PORTA_DATA_R &= ~(RS+RW+E);			// RS, RW ve E kapat
+	for (delay = 0 ; delay < 1000; delay++);	// 1ms bekle
+}
+
+void ekraniAktiflestir(){
+	volatile unsigned long delay;
+
+	init_lcd();						// Portlarý aktifleþtir
+	for (delay = 0 ; delay < 15000; delay++);	// 15ms bekle
+	komutGonder(0x38);							// 0b00111000 -> PortB
+	for (delay = 0 ; delay < 5000; delay++);	// 5ms bekle
+	komutGonder(0x38);							// 0b00111000 -> PortB
+	for (delay = 0 ; delay < 150; delay++);		// 150us bekle
+	komutGonder(0x0C);							// 0b00001010 -> PortB
+	komutGonder(0x01);							// Ekraný Temizle
+	komutGonder(0x06);							// 0b00000110 -> PortB
+	for (delay = 0 ; delay < 50000; delay++);	// 50ms bekle
+}
+
+void ekranaYazdir(unsigned int line,unsigned int digit, unsigned char *str){
+	unsigned int lineCode = line==1 ?0x80:0xC0;	// Line 1 ise 0x80, 2 ise 0xC0 komutu kullanýlmasý gerekiyor
+	komutGonder(lineCode + digit);				// Yazýnýn nereden baþlayacaðýný LCD'ye bildir
+	while(*str != 0){ veriGonder(*str++); }		// Ve yazdýr
+}
+int basiliButon(){
+	int b1,b2,b3,b4,b5,b6;// Þu anda basýlý olan butonu döndüren fonksiyon
+	b1=GPIO_PORTE_DATA_R & 0b00000001 ;
+			b2=GPIO_PORTE_DATA_R & 0b00000010;
+			b3=GPIO_PORTE_DATA_R & 0b00000100;
+			b4=GPIO_PORTE_DATA_R & 0b00001000;
+			b5=GPIO_PORTE_DATA_R & 0b00010000;
+			b6=GPIO_PORTE_DATA_R & 0b00100000;
+		if(b1 != 0){
+			return 1;
+		}else if(b2 != 0){
+			return 2;
+		}else if(b3 != 0){
+			return 3;
+		}else if(b4 !=0){
+			return 4;
+		}else if(b5 !=0){
+			return 5;
+		}else if(b6 !=0){
+			return 6;
+		}else{
+			return 0 ;
+		}
+}
+void diziTemizle(char dizi[]){
+	int u=strlen(dizi),i;
+	for(i=0;i<u;i++){
+		dizi[i]='\0';
+	}
+}
+void ekraniTemizle(){
+	ekranaYazdir(1,0,"                ");
+	ekranaYazdir(2,0,"                ");
+}
+void ekraniTemizle2(int x){
+	ekranaYazdir(x,0,"                ");
+	}
+void KurusTLye(int toplam){
+	ekraniTemizle2(2);
+	int birTL,mod;
+	birTL=toplam/100;
+	toplam-=birTL*100;
+	char para[2],str[16];
+	diziTemizle(para);
+	diziTemizle(str);
+	if(birTL!=0){
+		UARTprintf("%d TL ",birTL);
+		if(birTL<10){
+		para[0]=birTL+48;
+		}
+		else if(birTL<100){
+			mod=birTL%10;
+			birTL=birTL/10;
+			para[0]=birTL+48;
+			para[1]=mod+48;
+		}
+		strcat(str,para);
+		strcat(str," TL ");
+	}
+
+	diziTemizle(para);
+	if(toplam!=0){
+		UARTprintf("%d Krs",toplam);
+		mod=toplam%10;
+		toplam=toplam/10;
+		para[0]=toplam+48;
+		para[1]=mod+48;
+		strcat(str,para);
+		strcat(str," Krs");
+	}
+
+		ekranaYazdir(2,0,str);
+		UARTprintf("\n");
+
+
+}
+int resetButon(){
+	int button_sag = GPIO_PORTF_DATA_R & 0b00001;
+	if(button_sag==0){
+		return 1;
+	}
+	return 0;
+}
+void paraAl(int para[3]){
+		ekraniTemizle();
+		ekranaYazdir(1,0,"   Para atiniz");
+		UARTprintf("Para atiniz. \n");
+		int toplam=0,btn_son=0;
+		while(basiliButon()!=1){
+			if(resetButon()==1){
+				para[0]=-1;
+				break;
+			}
+			if(basiliButon()==4){
+				if(btn_son!=4){
+					btn_son=4;
+					toplam+=100;
+					para[0]++;
+					KurusTLye(toplam);
+				}
+			}else if(basiliButon()==3){
+				if(btn_son!=3){
+					btn_son=3;
+					toplam+=50;
+					para[1]++;
+					KurusTLye(toplam);
+				}
+			}else if(basiliButon()==2){
+				if(btn_son!=2){
+					btn_son=2;
+					toplam+=25;
+					para[0]++;
+					KurusTLye(toplam);
+				}
+			}else{
+				btn_son=0;
+			}
+
+		}
+
+}
+void urunYaz(int urun[5]){
+		ekraniTemizle();
+		char str[16],adet[2];
+		int birler,onlar;
+
+		ekranaYazdir(1,0," Urunleriniz");
+		int i,j;
+		for(i=0;i<5;i++){
+
+			if(urun[i]!=0){
+				ekraniTemizle2(2);
+						diziTemizle(str);
+				if(urun[i]<99 && urun[i]>9){
+				birler=urun[i]%10;
+				onlar=urun[i]/10;
+				adet[0]=onlar+48;
+				adet[1]=birler+48;
+				}else{
+					adet[0]=urun[i]+48;
+					adet[1]='\0';
+				}
+				UARTprintf("%d %s ",urun[i],depo[i].adi);
+				strcat(str,adet);
+				strcat(str," ");
+				strcat(str,depo[i].adi);
+				ekranaYazdir(2,0,str);
+				for(j=0;j<2500000;j++){}
+
+
+		 	 }
+
+
+		}
+					ekraniTemizle();
+					ekranaYazdir(1,0,"  Urun seciniz");
+
+					UARTprintf("\n");
+}
+void urunSec(int urun[5]){
+		UARTprintf("Urun seciniz. \n");
+		ekraniTemizle();
+				ekranaYazdir(1,0,"  Urun Seciniz");
+
+		int toplam=0,btn_son=0;
+		while(basiliButon()!=1){
+			if(resetButon()==1){
+				urun[0]=-1;
+							break;
+						}
+			if(basiliButon()==6){
+				if(btn_son!=6){
+					btn_son=6;
+					urun[0]++;
+					urunYaz(urun);
+				}
+			}else if(basiliButon()==5){
+				if(btn_son!=5){
+					btn_son=5;
+					urun[1]++;
+					urunYaz(urun);
+				}
+			}else if(basiliButon()==4){
+				if(btn_son!=4){
+					btn_son=4;
+					urun[2]++;
+					urunYaz(urun);
+				}
+			}else if(basiliButon()==3){
+				if(btn_son!=3){
+					btn_son=3;
+					urun[3]++;
+					urunYaz(urun);
+				}
+			}else if(basiliButon()==2){
+				if(btn_son!=2){
+					btn_son=2;
+					urun[4]++;
+					urunYaz(urun);
+				}
+			}else{
+				btn_son=0;
+			}
+
+		}
+
+}
+int paraKurusCevir(int para[3]){
+		int toplam=0;
+		toplam+=para[0]*100;
+		toplam+=para[1]*50;
+		toplam+=para[2]*25;
+		return toplam;
+}
+int urunKurusCevir(int urun[5]){
+	int i,toplam=0;
+	for(i=0;i<5;i++){
+		toplam+=depo[i].fiyat*urun[i];
+	}
+	return toplam;
+}
+int kasaKontrol(int toplam){
+	int kasa_toplam=0;
+	kasa_toplam+=kasa.birTL*100;
+	kasa_toplam+=kasa.elliKrs;
+	kasa_toplam+=kasa.yirmibeskrs;
+	if(kasa_toplam<toplam){
+		return 1;
+	}else{
+		return 0;
+	}
+
+}
+void paraBoz(int para[3],int fark){
+	int x;
+		x=fark/100;
+
+		if(x<kasa.birTL){
+			para[0]=x;
+			kasa.birTL-=x;
+			fark-=x*100;
+		}
+		else if(kasa.birTL==0){
+			para[0]=0;
+		}
+		else if(x>=kasa.birTL){
+			para[0]=kasa.birTL;
+			x-=kasa.birTL;
+			fark-=kasa.birTL*100;
+			kasa.birTL=0;
+		}
+		x=fark/50;
+		if(x<kasa.elliKrs){
+			para[1]=x;
+			kasa.birTL-=x;
+			fark-=x*50;
+			}
+		else if(kasa.elliKrs==0){
+				para[1]=0;
+			}
+		else if(x>=kasa.elliKrs){
+			para[1]=kasa.elliKrs;
+			x-=kasa.elliKrs;
+			fark-=kasa.elliKrs*50;
+			kasa.elliKrs=0;
+		}
+
+		x=fark/25;
+			if(x<kasa.yirmibeskrs){
+				para[2]=x;
+				kasa.yirmibeskrs-=x;
+				fark-=x*25;
+				}
+			else if(kasa.yirmibeskrs==0){
+					para[2]=0;
+				}
+			else if(x>=kasa.yirmibeskrs){
+				para[2]=kasa.yirmibeskrs;
+				x-=kasa.yirmibeskrs;
+				fark-=kasa.yirmibeskrs*25;
+				kasa.yirmibeskrs=0;
+			}
+}
+void kirmizi_yak(){
+	GPIO_PORTF_DATA_R &=~0b000100;
+	GPIO_PORTF_DATA_R |=0b000010;
+}
+void mavi_yak(){
+	GPIO_PORTF_DATA_R &=~0b000010;
+	GPIO_PORTF_DATA_R |=0b000100;
+}
+void led_sondur(){
+	GPIO_PORTF_DATA_R &=~0b000110;
+
+}
+int main(void) {
+	ekraniAktiflestir();
+	init_portE();
+	//init_port_D();
+	init_port_F();
+	init_UARTstdio();
+	kasa.birTL=20;
+	kasa.elliKrs=20;
+	kasa.yirmibeskrs=20;
+
+	depo[0].id=1;
+	strcpy(depo[0].adi,"su");
+	depo[0].stok=30;
+	depo[0].fiyat=50;
+
+	depo[1].id=2;
+	strcpy(depo[1].adi,"cay");
+	depo[1].stok=20;
+	depo[1].fiyat=100;
+
+	depo[2].id=3;
+	strcpy(depo[2].adi,"kahve");
+	depo[2].stok=15;
+	depo[2].fiyat=150;
+
+	depo[3].id=4;
+	strcpy(depo[3].adi,"cikolata");
+	depo[3].stok=50;
+	depo[3].fiyat=175;
+
+	depo[4].id=5;
+	strcpy(depo[4].adi,"biskuvi");
+	depo[4].stok=100;
+	depo[4].fiyat=200;
+
+	while(1){
+
+		GPIO_PORTE_DEN_R |= 0b00111111;
+		int rastgele=rand()%4+1;
+		int atilan[3]={0,0,0};
+		paraAl(atilan);
+		int j;
+		ekraniTemizle();
+		ekranaYazdir(1,0,"Para atma bitti");
+		for(j=0;j<2500000;j++){}
+		UARTprintf("Para atma bitmistir.. \n");
+		int urunler[5]={0,0,0,0,0};
+		if(atilan[0]!=-1){
+		urunSec(urunler);
+
+		}
+			if(urunler[0]==-1 || atilan[0]==-1){
+				UARTprintf("Reset atildi. \n");
+						ekraniTemizle();
+						ekranaYazdir(1,0,"Resetlendi");
+						for(j=0;j<2500000;j++){}
+		  	  }
+		   else if(atilan[0]==0 & atilan[1]==0 & atilan[2]==0){
+				UARTprintf("Para atmadiniz.\n");
+				ekraniTemizle();
+						ekranaYazdir(1,0,"Para atmadiniz");
+						for(j=0;j<2500000;j++){}
+				if(urunler[0]==0 & urunler[1]==0 & urunler[2]==0 & urunler[3]==0 & urunler[4]==0 ){
+					UARTprintf("Urunde secmediniz! \n");
+					ekraniTemizle();
+							ekranaYazdir(2,0,"Urun secilmedi");
+							for(j=0;j<2500000;j++){}
+				}
+			}else if(rastgele==2){
+						ekraniTemizle();
+						ekranaYazdir(1,0,"Para sikisti");
+						ekranaYazdir(2,0,"Tekrar deneyiniz");
+						kirmizi_yak();
+						for(j=0;j<2500000;j++){}
+						led_sondur();
+				UARTprintf("Para sikisti tekrar deneyiniz. \n");
+			}else{
+				int atilan_para,urun_fiyat;
+				atilan_para =paraKurusCevir(atilan);
+				urun_fiyat=urunKurusCevir(urunler);
+				int fark=atilan_para-urun_fiyat;
+				UARTprintf("\n atilan:%d , urun fiyat:%d \n",atilan_para,urun_fiyat);
+				if(fark<0){
+					ekraniTemizle();
+					ekranaYazdir(1,0,"atilan tutar ");
+					ekranaYazdir(2,5,"yetersiz");
+					UARTprintf("Attiginiz tutar yetersiz\n");
+					kirmizi_yak();
+					int j;
+					for(j=0;j<10000000;j++){}
+					led_sondur();
+				}
+				else if(kasaKontrol(fark)==1){
+
+					UARTprintf("Kasada yeterli para yok!\n");
+					ekraniTemizle();
+					ekranaYazdir(1,3,"Para ustu");
+					ekranaYazdir(2,2,"verilemiyor");
+					kirmizi_yak();
+					for(j=0;j<2500000;j++){}
+					led_sondur();
+
+				}else{
+					int para_ustu[3]={0,0,0},i;
+					kasa.birTL+=atilan[0];
+					kasa.elliKrs+=atilan[1];
+					kasa.yirmibeskrs+=atilan[2];
+
+					for(i=0;i<5;i++){
+						depo[i].stok-=urunler[i];
+					}
+					paraBoz(para_ustu,fark);
+					UARTprintf("%d 1TL %d 50 %d 25 \n",para_ustu[0],para_ustu[1],para_ustu[2]);
+					char para[2],str[16];
+					para[1]='\0';
+					if(fark!=0){
+					if(para_ustu[0]!=0){
+					para[0]=para_ustu[0]+48;
+					strcat(str,para);
+					strcat(str,"-TL ");
+					}
+					if(para_ustu[1]!=0){
+
+						para[0]=para_ustu[1]+48;
+						strcat(str,para);
+						strcat(str,"-50 Kr ");
+										}
+					if(para_ustu[2]!=0){
+						para[0]=para_ustu[2]+48;
+						strcat(str,para);
+						strcat(str,"-25Kr");
+						ekraniTemizle();
+
+										}
+					ekranaYazdir(1,1,"Para Ustu");
+											ekranaYazdir(2,4,str);
+											mavi_yak();
+											for(j=0;j<3500000;j++){}
+											led_sondur();
+					}else{
+						ekraniTemizle();
+						ekranaYazdir(1,1,"Para Ustu Yok");
+						kirmizi_yak();
+						for(j=0;j<3500000;j++){}
+						led_sondur();
+					}
+
+
+				}
+			}
+			atilan[0]=0;
+			atilan[1]=0;
+			atilan[2]=0;
+			urunler[0]=0;
+			urunler[1]=0;
+			urunler[2]=0;
+			urunler[3]=0;
+			urunler[4]=0;
+		GPIO_PORTE_DEN_R &= ~(0b00111111);
+	}
+}

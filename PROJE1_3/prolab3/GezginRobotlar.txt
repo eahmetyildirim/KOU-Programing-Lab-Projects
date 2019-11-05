@@ -1,0 +1,88 @@
+
+import java.util.Scanner;
+
+public class GezginRobotlar extends Robot{
+    private int gezinme_hýzý;
+    private static int hareket_parcasý;
+    private int g_hýz;
+     public GezginRobotlar(int motor_sayisi, int yük_miktari, String robot_tipi,int gezinme_hýzý,int hareket_parcasý) {
+        super(motor_sayisi, yük_miktari, robot_tipi);
+        this.gezinme_hýzý=gezinme_hýzý;
+        this.hareket_parcasý=hareket_parcasý;
+    }
+
+    public int getHareket_parcasý() {
+        return hareket_parcasý;
+    }
+
+    public void setHareket_parcasý(int hareket_parcasý) {
+        this.hareket_parcasý = hareket_parcasý;
+    }
+
+    public int getGezinme_hýzý() {
+        return gezinme_hýzý;
+    }
+
+    public void setGezinme_hýzý(int gezinme_hýzý) {
+        this.gezinme_hýzý = gezinme_hýzý;
+    }
+    
+    public void EngeldenGecmeSüresiniBul(){
+        double sure;
+        if(getRobot_tipi().equals("Tekerlekli")){
+            sure=getMotor_sayisi()*3;
+            System.out.println("Engeli aþma süresi:"+sure);
+            
+        }
+        else if(getRobot_tipi().equals("Paletli")){
+            sure=getMotor_sayisi()*0.5;
+            System.out.println("Engeli aþma süresi:"+sure);
+        }
+        
+    }
+    public void listele(GezginRobotlar gezgin){
+         System.out.println("Motor Sayýsý:"+gezgin.getMotor_sayisi());
+         System.out.println("Yük Miktari:"+gezgin.getYük_miktari());
+         System.out.println("Robot tipi:"+gezgin.getRobot_tipi());
+    }
+    public int hýzKotnrol(int h1,int h2){
+          RobotFabrikasý fabrika = new RobotFabrikasý();
+          Scanner scanner = new Scanner(System.in);
+                    while(h1<=h2){
+                        System.out.println("Geçerli gezinme hýzý girin:");
+                        g_hýz=scanner.nextInt();
+                        fabrika.setGezinme_hýzý(g_hýz);
+                        if(g_hýz>h2){
+                            break;
+                        }
+                    }
+                     
+                     return g_hýz;
+    }
+       public int hýzKotnrol2(int h1,int h2){
+          RobotFabrikasý fabrika = new RobotFabrikasý();
+          Scanner scanner = new Scanner(System.in);
+                    while(h1<=h2){
+                        System.out.println("Geçerli gezinme hýzý girin:");
+                        g_hýz=scanner.nextInt();
+                        fabrika.setGezinme_hýzý(g_hýz);
+                        if(g_hýz<h1){
+                            break;
+                        }
+                    }
+                     
+                     return g_hýz;
+    }
+
+    public int getG_hýz() {
+        return g_hýz;
+    }
+
+    public void setG_hýz(int g_hýz) {
+        this.g_hýz = g_hýz;
+    }
+    
+   
+    
+    
+}

@@ -1,0 +1,22 @@
+sure ayni isimlendirmeli dosyalarda (devre3 ve devre4) aynı anda cevap verme durumunda 
+kapılardan biri rastgele secilir ve onun sonucu isletilir.
+Daha sonra diger kapinin sonuc vermesi beklenir.
+
+devre3 ve devre4 icin >H b komutundan sonra >S komutu ciktisi:
+
+
+once NOR kapısı secilmis olursa:
+
+0ns: b 0->1
+1ns: e 1->0
+2ns: d 1->0	#NOR ve XOR aynı anda cevap vereceginden once NOR rastgele secildi d'yi degistirdi
+2ns: f 0->1	#aynı sure icinde XOR kapısı sonuc vermis oldu
+
+
+once XOR kapısı secilmis olursa:
+
+0ns: b 0->1
+1ns: e 1->0
+2ns: f 0->1	#NOR ve XOR aynı anda cevap vereceginden once XOR rastgele secildi f'yi degistirdi
+2ns: d 1->0	#aynı sure icinde NOR kapısı sonuc vermis oldu ve f cikisi girisince bir degisiklik oldugu icin
+3ns: f 1->0	#bir ns sonra f degisti

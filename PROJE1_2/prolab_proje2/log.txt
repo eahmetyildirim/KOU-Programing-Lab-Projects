@@ -1,0 +1,20 @@
+zaman			komut		cikti
+6/12/2018 23:57:24    K komut.txt      -komut.txt yuklendi..
+6/12/2018 23:57:24    Y devre.txt      devre.txt yuklendi..
+6/12/2018 23:57:24    I deger.txt      Ilk degerler yuklendi.
+6/12/2018 23:57:24    H b      b girisi birlendi
+6/12/2018 23:57:24    S
+                            0.ns:b 0->1
+                            5.ns:k 1->0
+6/12/2018 23:57:24    G* a=0  b=1  k=0  c=1  l=1  d=0  m=1  f=1 
+6/12/2018 23:57:24    S
+                            0.ns:b 0->1
+                            5.ns:k 1->0
+6/12/2018 23:57:24    G k=0 
+6/12/2018 23:57:26    C      Cikis yapildi.
+22/12/2018 18:7:0    Y       bulunamadi!
+22/12/2018 18:7:3    Y devre.txt       bulunamadi!devre.txt yuklendi..
+22/12/2018 18:7:6    I deger.txt      Ilk degerler yuklendi.
+22/12/2018 18:7:30    Y deger.txt      deger.txt yuklendi..
+22/12/2018 18:7:32    I devre.txt      Ilk degerler yuklendi.
+21/3/2019 19:6:40    Y devre.txt      devre.txt yuklendi..

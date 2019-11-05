@@ -1,0 +1,35 @@
+zaman			komut		cikti
+
+2018/10/31-15:06:10	Y devre.txt	devre.txt yuklendi
+
+2018/10/31-15:06:15	I deger.txt	degerler atandi
+
+2018/10/31-15:06:22	H b		b girisi birlendi
+
+2018/10/31-15:06:25	S		0ns: b 0->1
+					
+					1ns: l 1->0
+					
+					2ns: f 1->0
+					
+					3ns: k 1->0
+					
+					4ns: f 0->0
+
+2018/10/31-15:07:03	G*		a:0 b:1 c:1 d:0 k:0 l:0 m:1 f:0
+
+2018/10/31-15:07:12	H d		d girisi birlendi
+
+2018/10/31-15:07:15	S		0ns: d 0->1
+					
+					2ns: m 1->0
+					
+					3ns: f 0->0
+
+2018/10/31-15:07:38	G k		k:0
+
+2018/10/31-15:07:40	G f		f:0
+
+
+
+

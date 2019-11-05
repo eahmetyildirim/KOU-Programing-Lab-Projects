@@ -1,0 +1,9 @@
+# depslib dependency file v1.0
+1541173646 source:d:\calismalarim\codeblocks\2.sýnýf\proje1\main.cpp
+	"allegro.h"
+	<stdio.h>
+
+1541173646 source:d:\dersler\2.sinif\prolab\proje1_1\proje1\main.cpp
+	"allegro.h"
+	<stdio.h>
+
